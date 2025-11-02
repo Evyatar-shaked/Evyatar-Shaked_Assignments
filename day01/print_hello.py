@@ -1,2 +1,2 @@
 print("Hello, World!")
-# just hcecking that i add a comment
+# just checking that I add a comment
