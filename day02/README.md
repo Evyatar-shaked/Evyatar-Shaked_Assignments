@@ -1,7 +1,7 @@
 ## Assignment day02
 
 ### at class assignment
-*circle_area.py- calculate the area of a circle given the radius given by the user. chat gpt 5 was used
+* circle_area.py- calculate the area of a circle given the radius given by the user. chat gpt 5 was used
 
 ### at home assignment
 
