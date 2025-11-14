@@ -1,0 +1,12 @@
+# Requirements for Lab Dilution Calculator
+# Python 3.6+ required
+
+# Core dependency (usually included with Python)
+# tkinter - GUI framework (bundled with most Python installations)
+
+# Optional: For running tests with pytest instead of unittest
+# pytest>=7.0.0
+
+# No additional pip packages are required for basic functionality
+# tkinter comes pre-installed with Python on Windows and macOS
+# On Linux, install via: sudo apt-get install python3-tk
