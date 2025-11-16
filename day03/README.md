@@ -263,27 +263,8 @@ cd "c:\Users\evya1\OneDrive\Desktop\MSc\Courses\python\Evyatar-Shaked_Assignment
 python test_dilution.py
 ```
 
-## 📝 Contributing
+### created with claude sonnet 4.5 in the vscode agent mode
+### prompt: 
+I want to update the program and add more features. The program is designed to help lab workers perform dilutions easily, so I want to include an option for unit conversion (e.g., mL, µL) for both volume and concentration units.
 
-To add new features:
-1. Update `dilution_core.py` with new functions
-2. Add corresponding tests in `test_dilution.py`
-3. Update the GUI in `gui_version.py` if needed
-4. Run tests to ensure everything works
-
-## 📄 License
-
-This project is created for educational purposes as part of MSc coursework.
-
-## 👨‍🔬 Author
-
-Evyatar Shaked - MSc Course Assignment
-
-## 🔗 Related Files
-
-- Original dilution calculator: `../day02/dilution_calculator/`
-- Other course assignments: `../day01/`, `../day02/`
-
----
-
-**Made with 🧬 for lab workers by lab workers**
+Another improvement is to add a separate test file that verifies the program’s business logic. Additionally, I plan to create a README file that explains the program, including instructions for installing any dependencies if they exist.
