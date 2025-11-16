@@ -145,11 +145,12 @@ day04/
 └── README.md           # This file
 ```
 
-## License
-
-This is an educational project for learning bioinformatics programming.
 
 ## Credits
 
 - Uses [Biopython](https://biopython.org/) for NCBI BLAST integration
 - Queries [NCBI BLAST](https://blast.ncbi.nlm.nih.gov/) web services
+
+## AI usage
+- was created using claude sonnet 4.5 in the vscode agent mode
+- **The prompt:** Hi there I want to create a program that do the folowing things: take an input of a DNA sequence and organism name (add maybe a list or toggle option in GUI) and uses alignment of blast ncbi (uses the site API). and returns the most simillar sequences. thanks :) 
