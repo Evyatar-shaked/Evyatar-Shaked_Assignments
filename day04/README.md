@@ -121,10 +121,17 @@ You can also type any organism name directly into the dropdown.
 
 ## Troubleshooting
 
+**Error: "SSL: CERTIFICATE_VERIFY_FAILED"**
+This is a common issue with SSL certificates. The code now handles this automatically, but if you still encounter it:
+- Make sure you installed the requirements: `pip install -r requirements.txt`
+- The `certifi` package provides updated SSL certificates
+- If the error persists, the code will automatically fall back to unverified SSL (less secure but functional)
+
 **Error: "BLAST search failed"**
 - Check your internet connection
 - Verify the sequence contains only valid DNA characters
 - Try again in a few minutes (NCBI servers may be busy)
+- Some corporate/school networks may block NCBI access - try a different network
 
 **No results found**
 - Try searching without organism filter

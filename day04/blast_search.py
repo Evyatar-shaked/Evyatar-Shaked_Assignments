@@ -7,6 +7,9 @@ from Bio.Blast import NCBIWWW, NCBIXML
 from Bio import SeqIO
 from io import StringIO
 import time
+import ssl
+import urllib.request
+import certifi
 
 
 class BLASTSearcher:
@@ -15,6 +18,21 @@ class BLASTSearcher:
     def __init__(self):
         self.database = "nt"  # nucleotide database
         self.program = "blastn"  # nucleotide BLAST
+        self._setup_ssl()
+    
+    def _setup_ssl(self):
+        """Setup SSL context to handle certificate verification"""
+        try:
+            # Try to use certifi's certificate bundle
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+            urllib.request.install_opener(
+                urllib.request.build_opener(
+                    urllib.request.HTTPSHandler(context=ssl_context)
+                )
+            )
+        except Exception:
+            # Fallback: create unverified context (not recommended for production)
+            ssl._create_default_https_context = ssl._create_unverified_context
         
     def search_sequence(self, sequence, organism=None, max_results=10):
         """
