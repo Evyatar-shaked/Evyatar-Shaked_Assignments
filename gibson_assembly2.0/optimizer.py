@@ -139,14 +139,11 @@ class PrimerOptimizer:
         """
         results = []
         
-        # Ensure vector ranges are in correct order (but keep user values)
-        # Swap if backwards
-        if vector_upstream_start > vector_upstream_end:
-            vector_upstream_start, vector_upstream_end = vector_upstream_end, vector_upstream_start
-        
-        # Swap if backwards
-        if vector_downstream_start > vector_downstream_end:
-            vector_downstream_start, vector_downstream_end = vector_downstream_end, vector_downstream_start
+        # Ensure vector ranges are valid
+        vector_upstream_start = max(50, vector_upstream_start)
+        vector_upstream_end = min(len(vector_seq) - 100, vector_upstream_end)
+        vector_downstream_start = max(vector_upstream_end + 50, vector_downstream_start)
+        vector_downstream_end = min(len(vector_seq) - 50, vector_downstream_end)
         
         # If insert ranges not specified or optimize_insert is False, use full insert
         if not optimize_insert:
@@ -162,14 +159,11 @@ class PrimerOptimizer:
             if insert_rev_end is None:
                 insert_rev_end = len(insert_seq)
             
-            # Ensure insert ranges are in correct order (but keep user values)
-            # Swap if backwards
-            if insert_fwd_start > insert_fwd_end:
-                insert_fwd_start, insert_fwd_end = insert_fwd_end, insert_fwd_start
-            
-            # Swap if backwards
-            if insert_rev_start > insert_rev_end:
-                insert_rev_start, insert_rev_end = insert_rev_end, insert_rev_start
+            # Ensure insert ranges are valid
+            insert_fwd_start = max(0, insert_fwd_start)
+            insert_fwd_end = min(len(insert_seq) // 2, insert_fwd_end)
+            insert_rev_start = max(insert_fwd_end + 20, insert_rev_start)
+            insert_rev_end = min(len(insert_seq), insert_rev_end)
         
         # Calculate total combinations
         vector_upstream_positions = ((vector_upstream_end - vector_upstream_start) // step + 1)

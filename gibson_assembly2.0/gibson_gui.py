@@ -101,13 +101,9 @@ class GibsonAssemblyGUI:
         
         self.vector_text = scrolledtext.ScrolledText(vector_frame, height=8, width=80, wrap=tk.WORD)
         self.vector_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        self.vector_text.bind('<KeyRelease>', self.update_vector_length)
-        
-        self.vector_length_var = tk.StringVar(value="Length: 0 bp")
-        ttk.Label(vector_frame, textvariable=self.vector_length_var, foreground='blue').grid(row=1, column=0, sticky=tk.W, pady=2)
         
         vector_buttons = ttk.Frame(vector_frame)
-        vector_buttons.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        vector_buttons.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
         
         ttk.Button(vector_buttons, text="Load from File", 
                   command=self.load_vector_file).pack(side=tk.LEFT, padx=5)
@@ -120,13 +116,9 @@ class GibsonAssemblyGUI:
         
         self.insert_text = scrolledtext.ScrolledText(insert_frame, height=8, width=80, wrap=tk.WORD)
         self.insert_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        self.insert_text.bind('<KeyRelease>', self.update_insert_length)
-        
-        self.insert_length_var = tk.StringVar(value="Length: 0 bp")
-        ttk.Label(insert_frame, textvariable=self.insert_length_var, foreground='blue').grid(row=1, column=0, sticky=tk.W, pady=2)
         
         insert_buttons = ttk.Frame(insert_frame)
-        insert_buttons.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
+        insert_buttons.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
         
         ttk.Button(insert_buttons, text="Load from File", 
                   command=self.load_insert_file).pack(side=tk.LEFT, padx=5)
@@ -202,20 +194,22 @@ class GibsonAssemblyGUI:
         # Homology length
         ttk.Label(range_frame, text="Homology Length:").grid(row=11, column=0, padx=5)
         self.homology_var = tk.StringVar(value="25")
-        ttk.Entry(range_frame, textvariable=self.homology_var, width=10).grid(row=11, column=1, padx=5, sticky=tk.W)
-        ttk.Label(range_frame, text="nt (15-40)").grid(row=11, column=2, sticky=tk.W)
+        ttk.Spinbox(range_frame, from_=15, to=40, textvariable=self.homology_var, 
+                   width=10).grid(row=11, column=1, padx=5, sticky=tk.W)
+        ttk.Label(range_frame, text="nt").grid(row=11, column=2, sticky=tk.W)
         
         # Scan step
         ttk.Label(range_frame, text="Scan Step:").grid(row=12, column=0, padx=5)
         self.step_var = tk.StringVar(value="20")
-        ttk.Entry(range_frame, textvariable=self.step_var, width=10).grid(row=12, column=1, padx=5, sticky=tk.W)
+        ttk.Spinbox(range_frame, from_=5, to=50, textvariable=self.step_var, 
+                   width=10).grid(row=12, column=1, padx=5, sticky=tk.W)
         ttk.Label(range_frame, text="bp (↑ = faster)").grid(row=12, column=2, sticky=tk.W, padx=5)
         
         # Number of results
         ttk.Label(range_frame, text="Top Results:").grid(row=13, column=0, padx=5)
         self.n_results_var = tk.StringVar(value="5")
-        ttk.Entry(range_frame, textvariable=self.n_results_var, width=10).grid(row=13, column=1, padx=5, sticky=tk.W)
-        ttk.Label(range_frame, text="(1-20)").grid(row=13, column=2, sticky=tk.W)
+        ttk.Spinbox(range_frame, from_=1, to=20, textvariable=self.n_results_var, 
+                   width=10).grid(row=13, column=1, padx=5, sticky=tk.W)
         
         # Action buttons
         button_frame = ttk.Frame(scrollable_frame)
@@ -228,11 +222,9 @@ class GibsonAssemblyGUI:
         ttk.Button(button_frame, text="Clear All", 
                   command=self.clear_all).pack(side=tk.LEFT, padx=10)
         
-        # Progress bar in scrollable frame
-        progress_frame = ttk.Frame(scrollable_frame)
-        progress_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10, padx=5)
-        self.progress = ttk.Progressbar(progress_frame, mode='indeterminate', length=400)
-        self.progress.pack(fill=tk.X, expand=True)
+        # Progress bar
+        self.progress = ttk.Progressbar(parent, mode='indeterminate')
+        self.progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
     
     def setup_results_tab(self, parent):
         """Setup results tab"""
@@ -301,17 +293,6 @@ class GibsonAssemblyGUI:
         self.details_text.tag_configure('good', foreground='green')
         self.details_text.tag_configure('warning', foreground='orange')
         self.details_text.tag_configure('error', foreground='red')
-        self.details_text.tag_configure('highlight', foreground='purple', font=('Courier', 9, 'bold'))
-    
-    def update_vector_length(self, event=None):
-        """Update vector sequence length display"""
-        seq = self.vector_text.get(1.0, tk.END).strip().replace('\n', '').replace(' ', '')
-        self.vector_length_var.set(f"Length: {len(seq)} bp")
-    
-    def update_insert_length(self, event=None):
-        """Update insert sequence length display"""
-        seq = self.insert_text.get(1.0, tk.END).strip().replace('\n', '').replace(' ', '')
-        self.insert_length_var.set(f"Length: {len(seq)} bp")
     
     def toggle_insert_range(self):
         """Enable/disable insert range inputs"""
@@ -339,7 +320,6 @@ class GibsonAssemblyGUI:
                 sequence = read_sequence_file(filename)
                 self.vector_text.delete(1.0, tk.END)
                 self.vector_text.insert(1.0, sequence)
-                self.update_vector_length()
                 self.status_var.set(f"Loaded vector: {len(sequence)} bp")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {e}")
@@ -357,7 +337,6 @@ class GibsonAssemblyGUI:
                 sequence = read_sequence_file(filename)
                 self.insert_text.delete(1.0, tk.END)
                 self.insert_text.insert(1.0, sequence)
-                self.update_insert_length()
                 self.status_var.set(f"Loaded insert: {len(sequence)} bp")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {e}")
@@ -611,43 +590,11 @@ class GibsonAssemblyGUI:
             final_seq = result['final_construct']
             self.details_text.insert(tk.END, f"Length: {len(final_seq)} bp\n", 'good')
             self.details_text.insert(tk.END, f"\nSequence (5' to 3'):\n")
-            self.details_text.insert(tk.END, "Note: Homology regions are shown in UPPERCASE, vector/insert sequences in lowercase\n\n", 'good')
             
-            # Get homology arm lengths from validations
-            vals = result['validations']
-            homology_len_fwd = vals['insert_forward'].get('homology_region', {}).get('length', 25)
-            homology_len_rev = vals['insert_reverse'].get('homology_region', {}).get('length', 25)
-            
-            # Calculate positions for highlighting
-            # Insert starts after upstream vector
-            vector_upstream_len = result['vector_upstream_pos']
-            insert_len = result['insert_rev_pos'] - result['insert_fwd_pos']
-            
-            # Homology regions:
-            # 1. At junction between upstream vector and insert (forward homology)
-            # 2. At junction between insert and downstream vector (reverse homology)
-            homology1_start = vector_upstream_len - homology_len_fwd
-            homology1_end = vector_upstream_len + homology_len_fwd
-            homology2_start = vector_upstream_len + insert_len - homology_len_rev
-            homology2_end = vector_upstream_len + insert_len + homology_len_rev
-            
-            # Display sequence in chunks of 60 bp with highlighting
+            # Display sequence in chunks of 60 bp
             for i in range(0, len(final_seq), 60):
-                chunk_start = i
-                chunk_end = min(i + 60, len(final_seq))
-                line_num = f"{i+1:6d}  "
-                self.details_text.insert(tk.END, line_num)
-                
-                # Process each character in the chunk
-                for pos in range(chunk_start, chunk_end):
-                    char = final_seq[pos]
-                    # Check if position is in homology region
-                    if (homology1_start <= pos < homology1_end) or (homology2_start <= pos < homology2_end):
-                        self.details_text.insert(tk.END, char.upper(), 'highlight')
-                    else:
-                        self.details_text.insert(tk.END, char.lower())
-                
-                self.details_text.insert(tk.END, "\n")
+                chunk = final_seq[i:i+60]
+                self.details_text.insert(tk.END, f"{i+1:6d}  {chunk}\n")
     
     def display_validation_summary(self, validation):
         """Display validation summary for a primer"""
@@ -659,8 +606,6 @@ class GibsonAssemblyGUI:
         
         if 'annealing_region' in validation:
             self.details_text.insert(tk.END, f"   Tm (annealing): {validation['annealing_region']['tm']}°C\n")
-            if 'homology_region' in validation:
-                self.details_text.insert(tk.END, f"   Tm (homology): {validation['homology_region']['tm']:.1f}°C\n")
         else:
             self.details_text.insert(tk.END, f"   Tm: {metrics['tm']}°C\n")
         
@@ -715,23 +660,12 @@ class GibsonAssemblyGUI:
                         f.write(f"Score: {result['score']:.1f}/100\n")
                         f.write(f"{'='*80}\n\n")
                         
-                        # Write primers with validation details
+                        # Write primers
                         f.write("PRIMERS:\n")
-                        for primer_name, primer_label in [('vector_forward', 'Vector Forward'), 
-                                                          ('vector_reverse', 'Vector Reverse'),
-                                                          ('insert_forward', 'Insert Forward'),
-                                                          ('insert_reverse', 'Insert Reverse')]:
-                            f.write(f"\n{primer_label}:  5'- {result['primers'][primer_name]} -3'\n")
-                            val = result['validations'][primer_name]
-                            f.write(f"  Length: {val['metrics']['length']} nt\n")
-                            f.write(f"  GC: {val['metrics']['gc_content']}%\n")
-                            if 'annealing_region' in val:
-                                f.write(f"  Tm (annealing): {val['annealing_region']['tm']}°C\n")
-                                if 'homology_region' in val:
-                                    f.write(f"  Tm (homology): {val['homology_region']['tm']:.1f}°C\n")
-                            else:
-                                f.write(f"  Tm: {val['metrics']['tm']}°C\n")
-                        f.write("\n")
+                        f.write(f"Vector Forward:  5'- {result['primers']['vector_forward']} -3'\n")
+                        f.write(f"Vector Reverse:  5'- {result['primers']['vector_reverse']} -3'\n")
+                        f.write(f"Insert Forward:  5'- {result['primers']['insert_forward']} -3'\n")
+                        f.write(f"Insert Reverse:  5'- {result['primers']['insert_reverse']} -3'\n\n")
                         
                         # Write final construct
                         if 'final_construct' in result:
@@ -747,59 +681,74 @@ class GibsonAssemblyGUI:
         """Export single result to file"""
         filename = filedialog.asksaveasfilename(
             title="Export Result",
-            defaultextension=".txt",
-            filetypes=[("Text", "*.txt"), ("All Files", "*.*")]
+            defaultextension=".gb",
+            filetypes=[
+                ("GenBank", "*.gb *.gbk"),
+                ("Text", "*.txt"),
+                ("FASTA", "*.fasta *.fa"),
+                ("All Files", "*.*")
+            ]
         )
         
         if filename:
             try:
-                with open(filename, 'w') as f:
-                    f.write("Gibson Assembly Primer Design\n")
-                    f.write("="*80 + "\n\n")
-                    f.write(f"Cut Site: {result['cut_site']} bp\n")
-                    f.write(f"Overall Score: {result['score']:.1f}/100\n\n")
-                    
-                    f.write("VECTOR LINEARIZATION PRIMERS\n")
-                    f.write("-"*80 + "\n")
-                    for primer_name, label in [('vector_forward', 'Forward'), ('vector_reverse', 'Reverse')]:
-                        f.write(f"\n{label}: 5'- {result['primers'][primer_name]} -3'\n")
-                        val = result['validations'][primer_name]
-                        f.write(f"  Length: {val['metrics']['length']} nt\n")
-                        f.write(f"  GC: {val['metrics']['gc_content']}%\n")
-                        if 'annealing_region' in val:
-                            f.write(f"  Tm (annealing): {val['annealing_region']['tm']}°C\n")
-                            if 'homology_region' in val:
-                                f.write(f"  Tm (homology): {val['homology_region']['tm']:.1f}°C\n")
-                        else:
-                            f.write(f"  Tm: {val['metrics']['tm']}°C\n")
-                    
-                    f.write("\n\nINSERT AMPLIFICATION PRIMERS\n")
-                    f.write("-"*80 + "\n")
-                    for primer_name, label in [('insert_forward', 'Forward'), ('insert_reverse', 'Reverse')]:
-                        f.write(f"\n{label}: 5'- {result['primers'][primer_name]} -3'\n")
-                        val = result['validations'][primer_name]
-                        f.write(f"  Length: {val['metrics']['length']} nt\n")
-                        f.write(f"  GC: {val['metrics']['gc_content']}%\n")
-                        if 'annealing_region' in val:
-                            f.write(f"  Tm (annealing): {val['annealing_region']['tm']}°C\n")
-                            if 'homology_region' in val:
-                                f.write(f"  Tm (homology): {val['homology_region']['tm']:.1f}°C\n")
-                        else:
-                            f.write(f"  Tm: {val['metrics']['tm']}°C\n")
-                    f.write("\n")
-                    
-                    # Write final construct
-                    if 'final_construct' in result:
-                        f.write("FINAL ASSEMBLED CONSTRUCT\n")
-                        f.write("-"*80 + "\n")
-                        f.write(f"Length: {len(result['final_construct'])} bp\n\n")
-                        f.write("Sequence (5' to 3'):\n")
-                        final_seq = result['final_construct']
-                        for i in range(0, len(final_seq), 60):
-                            chunk = final_seq[i:i+60]
-                            f.write(f"{i+1:6d}  {chunk}\n")
+                # Determine format from extension
+                ext = filename.lower().split('.')[-1]
                 
-                messagebox.showinfo("Success", f"Exported to {filename}")
+                if ext in ['gb', 'gbk', 'genbank']:
+                    # Export as GenBank with annotations
+                    from utils import create_genbank_output, save_genbank
+                    record = create_genbank_output(result)
+                    save_genbank(record, filename)
+                    messagebox.showinfo("Success", f"Exported GenBank file with annotations to:\n{filename}")
+                
+                elif ext in ['fasta', 'fa']:
+                    # Export as FASTA
+                    from Bio.SeqRecord import SeqRecord
+                    from Bio.Seq import Seq
+                    from Bio import SeqIO
+                    record = SeqRecord(
+                        Seq(result['final_construct']),
+                        id="gibson_construct",
+                        description=f"Gibson assembly - Score: {result['score']:.1f}/100"
+                    )
+                    SeqIO.write(record, filename, "fasta")
+                    messagebox.showinfo("Success", f"Exported FASTA to:\n{filename}")
+                
+                else:
+                    # Export as plain text
+                    with open(filename, 'w') as f:
+                        f.write("Gibson Assembly Primer Design\n")
+                        f.write("="*80 + "\n\n")
+                        f.write(f"Vector Forward Primer: {result.get('vector_upstream_pos', '-')} bp\n")
+                        f.write(f"Vector Reverse Primer: {result.get('vector_downstream_pos', '-')} bp\n")
+                        f.write(f"Insert Forward Primer: {result.get('insert_fwd_pos', '-')} bp\n")
+                        f.write(f"Insert Reverse Primer: {result.get('insert_rev_pos', '-')} bp\n")
+                        f.write(f"Overall Score: {result['score']:.1f}/100\n\n")
+                        
+                        f.write("VECTOR LINEARIZATION PRIMERS\n")
+                        f.write("-"*80 + "\n")
+                        f.write(f"Forward: 5'- {result['primers']['vector_forward']} -3'\n")
+                        f.write(f"Reverse: 5'- {result['primers']['vector_reverse']} -3'\n\n")
+                        
+                        f.write("INSERT AMPLIFICATION PRIMERS\n")
+                        f.write("-"*80 + "\n")
+                        f.write(f"Forward: 5'- {result['primers']['insert_forward']} -3'\n")
+                        f.write(f"Reverse: 5'- {result['primers']['insert_reverse']} -3'\n\n")
+                        
+                        # Write final construct
+                        if 'final_construct' in result:
+                            f.write("FINAL ASSEMBLED CONSTRUCT\n")
+                            f.write("-"*80 + "\n")
+                            f.write(f"Length: {len(result['final_construct'])} bp\n\n")
+                            f.write("Sequence (5' to 3'):\n")
+                            final_seq = result['final_construct']
+                            for i in range(0, len(final_seq), 60):
+                                chunk = final_seq[i:i+60]
+                                f.write(f"{i+1:6d}  {chunk}\n")
+                    
+                    messagebox.showinfo("Success", f"Exported to:\n{filename}")
+            
             except Exception as e:
                 messagebox.showerror("Error", f"Export failed: {e}")
 

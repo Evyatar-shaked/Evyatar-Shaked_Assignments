@@ -3,10 +3,13 @@ Utility functions for Gibson assembly primer design
 Uses Biopython for sequence I/O
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from Bio import SeqIO
 from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.SeqFeature import SeqFeature, FeatureLocation
 from io import StringIO
+from datetime import datetime
 
 
 def parse_fasta(fasta_text: str) -> dict:
@@ -316,3 +319,135 @@ Cycling Conditions:
 4. Hold at 4°C
 """
     return protocol
+
+
+def create_genbank_output(result: Dict, original_vector_file: str = None, 
+                         original_insert_file: str = None) -> SeqRecord:
+    """
+    Create GenBank format output with annotations for primers and insert
+    
+    Args:
+        result: Result dictionary from optimizer
+        original_vector_file: Path to original vector GenBank file (optional)
+        original_insert_file: Path to original insert GenBank file (optional)
+    
+    Returns:
+        SeqRecord object that can be written as GenBank
+    """
+    final_seq = Seq(result['final_construct'])
+    
+    # Create SeqRecord
+    record = SeqRecord(
+        final_seq,
+        id="gibson_assembly",
+        name="gibson_construct",
+        description=f"Gibson assembly construct - Score: {result['score']:.1f}/100",
+        annotations={
+            "molecule_type": "DNA",
+            "topology": "circular",
+            "date": datetime.now().strftime("%d-%b-%Y").upper()
+        }
+    )
+    
+    # Get positions
+    vector_up = result.get('vector_upstream_pos', 0)
+    vector_down = result.get('vector_downstream_pos', len(result['final_construct']))
+    insert_start = result.get('insert_fwd_pos', 0)
+    insert_end = result.get('insert_rev_pos', 0)
+    insert_length = insert_end - insert_start
+    
+    # Add features for vector regions
+    # Upstream vector region
+    if vector_up > 0:
+        record.features.append(SeqFeature(
+            FeatureLocation(0, vector_up),
+            type="misc_feature",
+            qualifiers={
+                "label": "vector_upstream",
+                "note": "Vector region upstream of insert"
+            }
+        ))
+    
+    # Insert region
+    record.features.append(SeqFeature(
+        FeatureLocation(vector_up, vector_up + insert_length),
+        type="CDS",
+        qualifiers={
+            "label": "insert",
+            "note": f"Inserted fragment (bp {insert_start}-{insert_end})",
+            "gibson_assembly": "insert"
+        }
+    ))
+    
+    # Downstream vector region
+    if vector_up + insert_length < len(final_seq):
+        record.features.append(SeqFeature(
+            FeatureLocation(vector_up + insert_length, len(final_seq)),
+            type="misc_feature",
+            qualifiers={
+                "label": "vector_downstream",
+                "note": "Vector region downstream of insert"
+            }
+        ))
+    
+    # Add primer binding sites
+    primers = result['primers']
+    
+    # Vector forward primer
+    vf_len = len(primers['vector_forward'])
+    record.features.append(SeqFeature(
+        FeatureLocation(max(0, vector_up - 30), vector_up),
+        type="primer_bind",
+        strand=1,
+        qualifiers={
+            "label": "vector_fwd_primer",
+            "note": f"5'-{primers['vector_forward']}-3'"
+        }
+    ))
+    
+    # Vector reverse primer  
+    vr_pos = vector_up + insert_length
+    record.features.append(SeqFeature(
+        FeatureLocation(vr_pos, min(len(final_seq), vr_pos + 30)),
+        type="primer_bind",
+        strand=-1,
+        qualifiers={
+            "label": "vector_rev_primer",
+            "note": f"5'-{primers['vector_reverse']}-3'"
+        }
+    ))
+    
+    # Insert primers
+    record.features.append(SeqFeature(
+        FeatureLocation(vector_up, vector_up + 30),
+        type="primer_bind",
+        strand=1,
+        qualifiers={
+            "label": "insert_fwd_primer",
+            "note": f"5'-{primers['insert_forward']}-3'"
+        }
+    ))
+    
+    record.features.append(SeqFeature(
+        FeatureLocation(max(0, vector_up + insert_length - 30), vector_up + insert_length),
+        type="primer_bind",
+        strand=-1,
+        qualifiers={
+            "label": "insert_rev_primer",
+            "note": f"5'-{primers['insert_reverse']}-3'"
+        }
+    ))
+    
+    return record
+
+
+def save_genbank(record: SeqRecord, filename: str):
+    """
+    Save SeqRecord as GenBank file
+    
+    Args:
+        record: SeqRecord object
+        filename: Output filename
+    """
+    with open(filename, 'w') as f:
+        SeqIO.write(record, f, "genbank")
