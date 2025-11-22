@@ -4,8 +4,9 @@ A graphical interface for performing NCBI BLAST searches on DNA sequences
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, scrolledtext, messagebox, filedialog
 import threading
+import os
 from blast_search import BLASTSearcher
 
 
@@ -19,6 +20,7 @@ class BLASTApp:
         
         self.searcher = BLASTSearcher()
         self.search_thread = None
+        self.current_results = []  # Store current search results
         
         self.setup_ui()
         
@@ -149,13 +151,26 @@ class BLASTApp:
         )
         self.results_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
+        # Button frame for results actions
+        button_frame = ttk.Frame(results_frame)
+        button_frame.grid(row=1, column=0, pady=5)
+        
+        # Save FASTA button
+        self.save_fasta_button = ttk.Button(
+            button_frame,
+            text="Save Top 3 as FASTA",
+            command=self.save_top_fasta,
+            state='disabled'
+        )
+        self.save_fasta_button.grid(row=0, column=0, padx=5)
+        
         # Clear button
         clear_button = ttk.Button(
-            results_frame,
+            button_frame,
             text="Clear Results",
             command=self.clear_results
         )
-        clear_button.grid(row=1, column=0, pady=5)
+        clear_button.grid(row=0, column=1, padx=5)
         
         # Example sequence button
         example_button = ttk.Button(
@@ -238,7 +253,13 @@ class BLASTApp:
             self.status_label.config(text="No results found", foreground="orange")
             self.results_text.delete('1.0', tk.END)
             self.results_text.insert('1.0', "No matching sequences found in the database.")
+            self.current_results = []
+            self.save_fasta_button.config(state='disabled')
             return
+        
+        # Store results for later saving
+        self.current_results = results
+        self.save_fasta_button.config(state='normal')
         
         self.status_label.config(text=f"Search complete - {len(results)} results found", foreground="green")
         
@@ -279,6 +300,7 @@ class BLASTApp:
         """Display error message"""
         self.progress.stop()
         self.search_button.config(state='normal')
+        self.save_fasta_button.config(state='disabled')
         self.status_label.config(text="Search failed", foreground="red")
         
         messagebox.showerror("Search Error", f"BLAST search failed:\n\n{error_msg}")
@@ -286,7 +308,42 @@ class BLASTApp:
     def clear_results(self):
         """Clear the results text area"""
         self.results_text.delete('1.0', tk.END)
+        self.current_results = []
+        self.save_fasta_button.config(state='disabled')
         self.status_label.config(text="Ready to search", foreground="green")
+    
+    def save_top_fasta(self):
+        """Save top 3 sequences as FASTA files"""
+        if not self.current_results:
+            messagebox.showwarning("No Results", "No search results to save.")
+            return
+        
+        # Ask user to select output directory
+        output_dir = filedialog.askdirectory(
+            title="Select Directory to Save FASTA Files",
+            initialdir=os.getcwd()
+        )
+        
+        if not output_dir:
+            return  # User cancelled
+        
+        try:
+            # Save top 3 sequences
+            saved_files = self.searcher.save_top_sequences_as_fasta(
+                self.current_results,
+                output_dir=output_dir,
+                top_n=3
+            )
+            
+            # Show success message
+            files_list = "\n".join([os.path.basename(f) for f in saved_files])
+            messagebox.showinfo(
+                "Success",
+                f"Saved {len(saved_files)} FASTA files:\n\n{files_list}\n\nLocation: {output_dir}"
+            )
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save FASTA files:\n\n{str(e)}")
 
 
 def main():
