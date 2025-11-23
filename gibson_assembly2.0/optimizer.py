@@ -139,11 +139,11 @@ class PrimerOptimizer:
         """
         results = []
         
-        # Ensure vector ranges are valid
-        vector_upstream_start = max(50, vector_upstream_start)
-        vector_upstream_end = min(len(vector_seq) - 100, vector_upstream_end)
-        vector_downstream_start = max(vector_upstream_end + 50, vector_downstream_start)
-        vector_downstream_end = min(len(vector_seq) - 50, vector_downstream_end)
+        # Swap ranges if user entered them backwards
+        if vector_upstream_start > vector_upstream_end:
+            vector_upstream_start, vector_upstream_end = vector_upstream_end, vector_upstream_start
+        if vector_downstream_start > vector_downstream_end:
+            vector_downstream_start, vector_downstream_end = vector_downstream_end, vector_downstream_start
         
         # If insert ranges not specified or optimize_insert is False, use full insert
         if not optimize_insert:

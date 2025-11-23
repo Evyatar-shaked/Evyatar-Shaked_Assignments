@@ -22,6 +22,12 @@ class GibsonAssemblyGUI:
         self.designer = PrimerDesigner()
         self.current_results = []
         
+        # Store original sequences and file paths for GenBank export
+        self.vector_seq = None
+        self.insert_seq = None
+        self.vector_file = None
+        self.insert_file = None
+        
         self.setup_ui()
     
     def setup_ui(self):
@@ -102,8 +108,15 @@ class GibsonAssemblyGUI:
         self.vector_text = scrolledtext.ScrolledText(vector_frame, height=8, width=80, wrap=tk.WORD)
         self.vector_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
+        # Bind text change event to update length
+        self.vector_text.bind('<KeyRelease>', self.update_vector_length)
+        
         vector_buttons = ttk.Frame(vector_frame)
         vector_buttons.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        # Length display
+        self.vector_length_var = tk.StringVar(value="Length: 0 bp")
+        ttk.Label(vector_buttons, textvariable=self.vector_length_var, foreground='blue').pack(side=tk.RIGHT, padx=10)
         
         ttk.Button(vector_buttons, text="Load from File", 
                   command=self.load_vector_file).pack(side=tk.LEFT, padx=5)
@@ -117,8 +130,15 @@ class GibsonAssemblyGUI:
         self.insert_text = scrolledtext.ScrolledText(insert_frame, height=8, width=80, wrap=tk.WORD)
         self.insert_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
+        # Bind text change event to update length
+        self.insert_text.bind('<KeyRelease>', self.update_insert_length)
+        
         insert_buttons = ttk.Frame(insert_frame)
         insert_buttons.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+        
+        # Length display
+        self.insert_length_var = tk.StringVar(value="Length: 0 bp")
+        ttk.Label(insert_buttons, textvariable=self.insert_length_var, foreground='blue').pack(side=tk.RIGHT, padx=10)
         
         ttk.Button(insert_buttons, text="Load from File", 
                   command=self.load_insert_file).pack(side=tk.LEFT, padx=5)
@@ -293,6 +313,7 @@ class GibsonAssemblyGUI:
         self.details_text.tag_configure('good', foreground='green')
         self.details_text.tag_configure('warning', foreground='orange')
         self.details_text.tag_configure('error', foreground='red')
+        self.details_text.tag_configure('highlight', foreground='purple', font=('Courier', 9, 'bold'))
     
     def toggle_insert_range(self):
         """Enable/disable insert range inputs"""
@@ -307,6 +328,16 @@ class GibsonAssemblyGUI:
             self.insert_rev_start_entry.config(state='disabled')
             self.insert_rev_end_entry.config(state='disabled')
     
+    def update_vector_length(self, event=None):
+        """Update vector sequence length display"""
+        seq = self.vector_text.get(1.0, tk.END).strip().replace('\n', '').replace(' ', '')
+        self.vector_length_var.set(f"Length: {len(seq)} bp")
+    
+    def update_insert_length(self, event=None):
+        """Update insert sequence length display"""
+        seq = self.insert_text.get(1.0, tk.END).strip().replace('\n', '').replace(' ', '')
+        self.insert_length_var.set(f"Length: {len(seq)} bp")
+    
     def load_vector_file(self):
         """Load vector sequence from file"""
         filename = filedialog.askopenfilename(
@@ -320,6 +351,11 @@ class GibsonAssemblyGUI:
                 sequence = read_sequence_file(filename)
                 self.vector_text.delete(1.0, tk.END)
                 self.vector_text.insert(1.0, sequence)
+                # Store for GenBank export
+                self.vector_file = filename if filename.lower().endswith(('.gb', '.gbk', '.genbank')) else None
+                self.vector_seq = sequence
+                # Update length display
+                self.update_vector_length()
                 self.status_var.set(f"Loaded vector: {len(sequence)} bp")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {e}")
@@ -337,6 +373,11 @@ class GibsonAssemblyGUI:
                 sequence = read_sequence_file(filename)
                 self.insert_text.delete(1.0, tk.END)
                 self.insert_text.insert(1.0, sequence)
+                # Store for GenBank export
+                self.insert_file = filename if filename.lower().endswith(('.gb', '.gbk', '.genbank')) else None
+                self.insert_seq = sequence
+                # Update length display
+                self.update_insert_length()
                 self.status_var.set(f"Loaded insert: {len(sequence)} bp")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {e}")
@@ -348,6 +389,10 @@ class GibsonAssemblyGUI:
         self.results_tree.delete(*self.results_tree.get_children())
         self.details_text.delete(1.0, tk.END)
         self.current_results = []
+        self.vector_file = None
+        self.insert_file = None
+        self.vector_seq = None
+        self.insert_seq = None
         self.status_var.set("Cleared all inputs")
     
     def run_optimization(self):
@@ -356,6 +401,12 @@ class GibsonAssemblyGUI:
         # Get sequences
         vector_seq = self.vector_text.get(1.0, tk.END).strip().replace('\n', '').replace(' ', '').upper()
         insert_seq = self.insert_text.get(1.0, tk.END).strip().replace('\n', '').replace(' ', '').upper()
+        
+        # Store sequences for GenBank export (if not already stored from file load)
+        if not self.vector_seq:
+            self.vector_seq = vector_seq
+        if not self.insert_seq:
+            self.insert_seq = insert_seq
         
         # Validate inputs
         if not vector_seq or not insert_seq:
@@ -564,11 +615,11 @@ class GibsonAssemblyGUI:
         self.details_text.insert(tk.END, "-"*80 + "\n")
         
         self.details_text.insert(tk.END, "\n1. Vector Forward:\n", 'subheader')
-        self.details_text.insert(tk.END, f"   5'- {primers['vector_forward']} -3'\n")
+        self.display_formatted_primer(primers['vector_forward'], vals['vector_forward'])
         self.display_validation_summary(vals['vector_forward'])
         
         self.details_text.insert(tk.END, "\n2. Vector Reverse:\n", 'subheader')
-        self.details_text.insert(tk.END, f"   5'- {primers['vector_reverse']} -3'\n")
+        self.display_formatted_primer(primers['vector_reverse'], vals['vector_reverse'])
         self.display_validation_summary(vals['vector_reverse'])
         
         # Insert primers
@@ -576,11 +627,11 @@ class GibsonAssemblyGUI:
         self.details_text.insert(tk.END, "-"*80 + "\n")
         
         self.details_text.insert(tk.END, "\n3. Insert Forward:\n", 'subheader')
-        self.details_text.insert(tk.END, f"   5'- {primers['insert_forward']} -3'\n")
+        self.display_formatted_primer(primers['insert_forward'], vals['insert_forward'])
         self.display_validation_summary(vals['insert_forward'])
         
         self.details_text.insert(tk.END, "\n4. Insert Reverse:\n", 'subheader')
-        self.details_text.insert(tk.END, f"   5'- {primers['insert_reverse']} -3'\n")
+        self.display_formatted_primer(primers['insert_reverse'], vals['insert_reverse'])
         self.display_validation_summary(vals['insert_reverse'])
         
         # Final construct
@@ -590,11 +641,53 @@ class GibsonAssemblyGUI:
             final_seq = result['final_construct']
             self.details_text.insert(tk.END, f"Length: {len(final_seq)} bp\n", 'good')
             self.details_text.insert(tk.END, f"\nSequence (5' to 3'):\n")
+            self.details_text.insert(tk.END, "Note: Homology regions shown in UPPERCASE\n\n", 'good')
             
-            # Display sequence in chunks of 60 bp
+            # Get homology arm lengths from validations
+            homology_len_fwd = vals.get('insert_forward', {}).get('homology_region', {}).get('length', 25)
+            homology_len_rev = vals.get('insert_reverse', {}).get('homology_region', {}).get('length', 25)
+            
+            # Calculate positions for highlighting
+            vector_upstream_len = result.get('vector_upstream_pos', 0)
+            insert_len = result.get('insert_rev_pos', 0) - result.get('insert_fwd_pos', 0)
+            
+            # Homology regions at junctions
+            homology1_start = vector_upstream_len - homology_len_fwd
+            homology1_end = vector_upstream_len + homology_len_fwd
+            homology2_start = vector_upstream_len + insert_len - homology_len_rev
+            homology2_end = vector_upstream_len + insert_len + homology_len_rev
+            
+            # Display sequence in chunks of 60 bp with highlighting
             for i in range(0, len(final_seq), 60):
-                chunk = final_seq[i:i+60]
-                self.details_text.insert(tk.END, f"{i+1:6d}  {chunk}\n")
+                chunk_start = i
+                chunk_end = min(i + 60, len(final_seq))
+                line_num = f"{i+1:6d}  "
+                self.details_text.insert(tk.END, line_num)
+                
+                # Process each character in the chunk
+                for pos in range(chunk_start, chunk_end):
+                    char = final_seq[pos]
+                    # Check if position is in homology region
+                    if (homology1_start <= pos < homology1_end) or (homology2_start <= pos < homology2_end):
+                        self.details_text.insert(tk.END, char.upper(), 'highlight')
+                    else:
+                        self.details_text.insert(tk.END, char.lower())
+                
+                self.details_text.insert(tk.END, "\n")
+    
+    def display_formatted_primer(self, primer_seq, validation):
+        """Display primer with homology in lowercase and annealing in uppercase"""
+        if 'homology_region' in validation and 'annealing_region' in validation:
+            homology_seq = validation['homology_region']['sequence']
+            annealing_seq = validation['annealing_region']['sequence']
+            # Format: homology (lowercase) + annealing (uppercase)
+            formatted = homology_seq.lower() + annealing_seq.upper()
+            self.details_text.insert(tk.END, f"   5'- ")
+            self.details_text.insert(tk.END, homology_seq.lower())
+            self.details_text.insert(tk.END, annealing_seq.upper(), 'highlight')
+            self.details_text.insert(tk.END, " -3'\n")
+        else:
+            self.details_text.insert(tk.END, f"   5'- {primer_seq} -3'\n")
     
     def display_validation_summary(self, validation):
         """Display validation summary for a primer"""
@@ -606,6 +699,8 @@ class GibsonAssemblyGUI:
         
         if 'annealing_region' in validation:
             self.details_text.insert(tk.END, f"   Tm (annealing): {validation['annealing_region']['tm']}°C\n")
+            if 'homology_region' in validation:
+                self.details_text.insert(tk.END, f"   Tm (homology): {validation['homology_region']['tm']:.1f}°C\n")
         else:
             self.details_text.insert(tk.END, f"   Tm: {metrics['tm']}°C\n")
         
@@ -634,7 +729,7 @@ class GibsonAssemblyGUI:
         rank = int(item['values'][0]) - 1
         
         if 0 <= rank < len(self.current_results):
-            self.export_result(self.current_results[rank])
+            self.show_export_dialog(self.current_results[rank])
     
     def export_all(self):
         """Export all results to file"""
@@ -677,68 +772,196 @@ class GibsonAssemblyGUI:
             except Exception as e:
                 messagebox.showerror("Error", f"Export failed: {e}")
     
-    def export_result(self, result):
+    def show_export_dialog(self, result):
+        """Show export options dialog"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Export Options")
+        dialog.geometry("450x350")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (350 // 2)
+        dialog.geometry(f"450x350+{x}+{y}")
+        
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        ttk.Label(main_frame, text="Choose Export Options", font=('Arial', 12, 'bold')).pack(pady=(0, 15))
+        
+        # Export content selection
+        content_frame = ttk.LabelFrame(main_frame, text="What to Export", padding="10")
+        content_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        export_content = tk.StringVar(value="construct")
+        ttk.Radiobutton(content_frame, text="Final Construct Only", variable=export_content, value="construct").pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(content_frame, text="Primers Only", variable=export_content, value="primers").pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(content_frame, text="Both Construct and Primers", variable=export_content, value="both").pack(anchor=tk.W, pady=2)
+        
+        # Format selection
+        format_frame = ttk.LabelFrame(main_frame, text="Export Format", padding="10")
+        format_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        export_format = tk.StringVar(value="genbank")
+        ttk.Radiobutton(format_frame, text="GenBank (.gb) - with annotations", variable=export_format, value="genbank").pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(format_frame, text="FASTA (.fasta) - sequence only", variable=export_format, value="fasta").pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(format_frame, text="Text (.txt) - detailed report", variable=export_format, value="text").pack(anchor=tk.W, pady=2)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(pady=(10, 0))
+        
+        def on_export():
+            dialog.destroy()
+            self.export_result(result, export_content.get(), export_format.get())
+        
+        ttk.Button(button_frame, text="Export", command=on_export, width=12).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=dialog.destroy, width=12).pack(side=tk.LEFT, padx=5)
+    
+    def export_result(self, result, content_type="both", format_type="genbank"):
         """Export single result to file"""
+        # Determine file extension and filter
+        if format_type == "genbank":
+            default_ext = ".gb"
+            filetypes = [("GenBank", "*.gb *.gbk"), ("All Files", "*.*")]
+        elif format_type == "fasta":
+            default_ext = ".fasta"
+            filetypes = [("FASTA", "*.fasta *.fa"), ("All Files", "*.*")]
+        else:
+            default_ext = ".txt"
+            filetypes = [("Text", "*.txt"), ("All Files", "*.*")]
+        
         filename = filedialog.asksaveasfilename(
             title="Export Result",
-            defaultextension=".gb",
-            filetypes=[
-                ("GenBank", "*.gb *.gbk"),
-                ("Text", "*.txt"),
-                ("FASTA", "*.fasta *.fa"),
-                ("All Files", "*.*")
-            ]
+            defaultextension=default_ext,
+            filetypes=filetypes
         )
         
         if filename:
             try:
-                # Determine format from extension
-                ext = filename.lower().split('.')[-1]
-                
-                if ext in ['gb', 'gbk', 'genbank']:
+                if format_type == "genbank":
                     # Export as GenBank with annotations
                     from utils import create_genbank_output, save_genbank
-                    record = create_genbank_output(result)
-                    save_genbank(record, filename)
-                    messagebox.showinfo("Success", f"Exported GenBank file with annotations to:\n{filename}")
+                    from Bio.SeqRecord import SeqRecord
+                    from Bio.Seq import Seq
+                    from Bio.SeqFeature import SeqFeature, FeatureLocation
+                    
+                    if content_type == "construct":
+                        # Export only construct
+                        record = create_genbank_output(
+                            result,
+                            vector_seq=self.vector_seq,
+                            insert_seq=self.insert_seq,
+                            original_vector_file=self.vector_file,
+                            original_insert_file=self.insert_file
+                        )
+                        save_genbank(record, filename)
+                    
+                    elif content_type == "primers":
+                        # Export primers as separate sequences
+                        from Bio import SeqIO
+                        primers = result['primers']
+                        records = []
+                        for name, seq in primers.items():
+                            rec = SeqRecord(
+                                Seq(seq),
+                                id=name.replace('_', '_'),
+                                name=name,
+                                description=f"Gibson assembly primer - {name}"
+                            )
+                            records.append(rec)
+                        with open(filename, 'w') as f:
+                            SeqIO.write(records, f, "genbank")
+                    
+                    else:  # both
+                        record = create_genbank_output(
+                            result,
+                            vector_seq=self.vector_seq,
+                            insert_seq=self.insert_seq,
+                            original_vector_file=self.vector_file,
+                            original_insert_file=self.insert_file
+                        )
+                        save_genbank(record, filename)
+                    
+                    messagebox.showinfo("Success", f"Exported GenBank file to:\n{filename}")
                 
-                elif ext in ['fasta', 'fa']:
+                elif format_type == "fasta":
                     # Export as FASTA
                     from Bio.SeqRecord import SeqRecord
                     from Bio.Seq import Seq
                     from Bio import SeqIO
-                    record = SeqRecord(
-                        Seq(result['final_construct']),
-                        id="gibson_construct",
-                        description=f"Gibson assembly - Score: {result['score']:.1f}/100"
-                    )
-                    SeqIO.write(record, filename, "fasta")
+                    
+                    records = []
+                    
+                    if content_type in ["construct", "both"]:
+                        record = SeqRecord(
+                            Seq(result['final_construct']),
+                            id="gibson_construct",
+                            description=f"Gibson assembly - Score: {result['score']:.1f}/100"
+                        )
+                        records.append(record)
+                    
+                    if content_type in ["primers", "both"]:
+                        primers = result['primers']
+                        for name, seq in primers.items():
+                            rec = SeqRecord(
+                                Seq(seq),
+                                id=name,
+                                description=f"Gibson assembly primer"
+                            )
+                            records.append(rec)
+                    
+                    with open(filename, 'w') as f:
+                        SeqIO.write(records, f, "fasta")
                     messagebox.showinfo("Success", f"Exported FASTA to:\n{filename}")
                 
-                else:
+                else:  # text format
                     # Export as plain text
                     with open(filename, 'w') as f:
                         f.write("Gibson Assembly Primer Design\n")
                         f.write("="*80 + "\n\n")
-                        f.write(f"Vector Forward Primer: {result.get('vector_upstream_pos', '-')} bp\n")
-                        f.write(f"Vector Reverse Primer: {result.get('vector_downstream_pos', '-')} bp\n")
-                        f.write(f"Insert Forward Primer: {result.get('insert_fwd_pos', '-')} bp\n")
-                        f.write(f"Insert Reverse Primer: {result.get('insert_rev_pos', '-')} bp\n")
+                        f.write(f"Vector Forward Primer Position: {result.get('vector_upstream_pos', '-')} bp\n")
+                        f.write(f"Vector Reverse Primer Position: {result.get('vector_downstream_pos', '-')} bp\n")
+                        f.write(f"Insert Forward Primer Position: {result.get('insert_fwd_pos', '-')} bp\n")
+                        f.write(f"Insert Reverse Primer Position: {result.get('insert_rev_pos', '-')} bp\n")
                         f.write(f"Overall Score: {result['score']:.1f}/100\n\n")
                         
-                        f.write("VECTOR LINEARIZATION PRIMERS\n")
-                        f.write("-"*80 + "\n")
-                        f.write(f"Forward: 5'- {result['primers']['vector_forward']} -3'\n")
-                        f.write(f"Reverse: 5'- {result['primers']['vector_reverse']} -3'\n\n")
-                        
-                        f.write("INSERT AMPLIFICATION PRIMERS\n")
-                        f.write("-"*80 + "\n")
-                        f.write(f"Forward: 5'- {result['primers']['insert_forward']} -3'\n")
-                        f.write(f"Reverse: 5'- {result['primers']['insert_reverse']} -3'\n\n")
+                        if content_type in ["primers", "both"]:
+                            f.write("VECTOR LINEARIZATION PRIMERS\n")
+                            f.write("-"*80 + "\n")
+                            for primer_name, label in [('vector_forward', 'Forward'), ('vector_reverse', 'Reverse')]:
+                                f.write(f"\n{label}: 5'- {result['primers'][primer_name]} -3'\n")
+                                val = result['validations'][primer_name]
+                                f.write(f"  Length: {val['metrics']['length']} nt\n")
+                                f.write(f"  GC: {val['metrics']['gc_content']}%\n")
+                                if 'annealing_region' in val:
+                                    f.write(f"  Tm (annealing): {val['annealing_region']['tm']}°C\n")
+                                    if 'homology_region' in val:
+                                        f.write(f"  Tm (homology): {val['homology_region']['tm']:.1f}°C\n")
+                                else:
+                                    f.write(f"  Tm: {val['metrics']['tm']}°C\n")
+                            
+                            f.write("\n\nINSERT AMPLIFICATION PRIMERS\n")
+                            f.write("-"*80 + "\n")
+                            for primer_name, label in [('insert_forward', 'Forward'), ('insert_reverse', 'Reverse')]:
+                                f.write(f"\n{label}: 5'- {result['primers'][primer_name]} -3'\n")
+                                val = result['validations'][primer_name]
+                                f.write(f"  Length: {val['metrics']['length']} nt\n")
+                                f.write(f"  GC: {val['metrics']['gc_content']}%\n")
+                                if 'annealing_region' in val:
+                                    f.write(f"  Tm (annealing): {val['annealing_region']['tm']}°C\n")
+                                    if 'homology_region' in val:
+                                        f.write(f"  Tm (homology): {val['homology_region']['tm']:.1f}°C\n")
+                                else:
+                                    f.write(f"  Tm: {val['metrics']['tm']}°C\n")
+                            f.write("\n")
                         
                         # Write final construct
-                        if 'final_construct' in result:
-                            f.write("FINAL ASSEMBLED CONSTRUCT\n")
+                        if content_type in ["construct", "both"] and 'final_construct' in result:
+                            f.write("\nFINAL ASSEMBLED CONSTRUCT\n")
                             f.write("-"*80 + "\n")
                             f.write(f"Length: {len(result['final_construct'])} bp\n\n")
                             f.write("Sequence (5' to 3'):\n")

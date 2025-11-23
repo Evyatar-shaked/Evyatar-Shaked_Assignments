@@ -321,13 +321,17 @@ Cycling Conditions:
     return protocol
 
 
-def create_genbank_output(result: Dict, original_vector_file: str = None, 
+def create_genbank_output(result: Dict, vector_seq: str = None, insert_seq: str = None,
+                         original_vector_file: str = None, 
                          original_insert_file: str = None) -> SeqRecord:
     """
     Create GenBank format output with annotations for primers and insert
+    Preserves original annotations from vector and insert files
     
     Args:
         result: Result dictionary from optimizer
+        vector_seq: Original vector sequence (for matching features)
+        insert_seq: Original insert sequence (for matching features)
         original_vector_file: Path to original vector GenBank file (optional)
         original_insert_file: Path to original insert GenBank file (optional)
     
@@ -356,37 +360,94 @@ def create_genbank_output(result: Dict, original_vector_file: str = None,
     insert_end = result.get('insert_rev_pos', 0)
     insert_length = insert_end - insert_start
     
-    # Add features for vector regions
-    # Upstream vector region
-    if vector_up > 0:
+    # Load original features from GenBank files if provided
+    vector_features = []
+    insert_features = []
+    
+    if original_vector_file:
+        try:
+            vector_record = SeqIO.read(original_vector_file, "genbank")
+            vector_features = vector_record.features
+            # Preserve original annotations if available
+            if hasattr(vector_record, 'annotations'):
+                for key in ['organism', 'source', 'taxonomy', 'references']:
+                    if key in vector_record.annotations:
+                        record.annotations[key] = vector_record.annotations[key]
+        except:
+            pass
+    
+    if original_insert_file:
+        try:
+            insert_record = SeqIO.read(original_insert_file, "genbank")
+            insert_features = insert_record.features
+        except:
+            pass
+    
+    # Transfer vector features to new positions
+    # Upstream vector features (0 to vector_up)
+    for feature in vector_features:
+        if feature.location.start < vector_up and feature.location.end <= vector_up:
+            # Feature entirely in upstream region - keep as is
+            new_feature = SeqFeature(
+                FeatureLocation(feature.location.start, feature.location.end, feature.location.strand),
+                type=feature.type,
+                qualifiers=feature.qualifiers.copy()
+            )
+            record.features.append(new_feature)
+        elif feature.location.start >= vector_up:
+            # Feature in downstream region - shift by insert length
+            new_start = feature.location.start + insert_length
+            new_end = feature.location.end + insert_length
+            if new_end <= len(final_seq):
+                new_feature = SeqFeature(
+                    FeatureLocation(new_start, new_end, feature.location.strand),
+                    type=feature.type,
+                    qualifiers=feature.qualifiers.copy()
+                )
+                record.features.append(new_feature)
+    
+    # Transfer insert features (positioned at vector_up + offset)
+    for feature in insert_features:
+        # Check if feature is within the amplified region
+        if feature.location.start >= insert_start and feature.location.end <= insert_end:
+            # Adjust position relative to insert start, then place in construct
+            offset_start = feature.location.start - insert_start
+            offset_end = feature.location.end - insert_start
+            new_start = vector_up + offset_start
+            new_end = vector_up + offset_end
+            
+            new_feature = SeqFeature(
+                FeatureLocation(new_start, new_end, feature.location.strand),
+                type=feature.type,
+                qualifiers=feature.qualifiers.copy()
+            )
+            record.features.append(new_feature)
+    
+    # Add Gibson assembly junction annotations
+    # Homology regions at junctions
+    vals = result.get('validations', {})
+    if 'insert_forward' in vals and 'homology_region' in vals['insert_forward']:
+        homology_len_fwd = vals['insert_forward']['homology_region']['length']
         record.features.append(SeqFeature(
-            FeatureLocation(0, vector_up),
+            FeatureLocation(max(0, vector_up - homology_len_fwd), min(len(final_seq), vector_up + homology_len_fwd)),
             type="misc_feature",
             qualifiers={
-                "label": "vector_upstream",
-                "note": "Vector region upstream of insert"
+                "label": "gibson_junction_1",
+                "note": f"Gibson assembly homology region ({homology_len_fwd}bp overlap)",
+                "ApEinfo_fwdcolor": "#85dae9"
             }
         ))
     
-    # Insert region
-    record.features.append(SeqFeature(
-        FeatureLocation(vector_up, vector_up + insert_length),
-        type="CDS",
-        qualifiers={
-            "label": "insert",
-            "note": f"Inserted fragment (bp {insert_start}-{insert_end})",
-            "gibson_assembly": "insert"
-        }
-    ))
-    
-    # Downstream vector region
-    if vector_up + insert_length < len(final_seq):
+    if 'insert_reverse' in vals and 'homology_region' in vals['insert_reverse']:
+        homology_len_rev = vals['insert_reverse']['homology_region']['length']
+        junction_pos = vector_up + insert_length
         record.features.append(SeqFeature(
-            FeatureLocation(vector_up + insert_length, len(final_seq)),
+            FeatureLocation(max(0, junction_pos - homology_len_rev), min(len(final_seq), junction_pos + homology_len_rev)),
             type="misc_feature",
             qualifiers={
-                "label": "vector_downstream",
-                "note": "Vector region downstream of insert"
+                "label": "gibson_junction_2",
+                "note": f"Gibson assembly homology region ({homology_len_rev}bp overlap)",
+                "ApEinfo_fwdcolor": "#85dae9"
             }
         ))
     
@@ -396,9 +457,8 @@ def create_genbank_output(result: Dict, original_vector_file: str = None,
     # Vector forward primer
     vf_len = len(primers['vector_forward'])
     record.features.append(SeqFeature(
-        FeatureLocation(max(0, vector_up - 30), vector_up),
+        FeatureLocation(max(0, vector_up - 30), vector_up, strand=1),
         type="primer_bind",
-        strand=1,
         qualifiers={
             "label": "vector_fwd_primer",
             "note": f"5'-{primers['vector_forward']}-3'"
@@ -408,9 +468,8 @@ def create_genbank_output(result: Dict, original_vector_file: str = None,
     # Vector reverse primer  
     vr_pos = vector_up + insert_length
     record.features.append(SeqFeature(
-        FeatureLocation(vr_pos, min(len(final_seq), vr_pos + 30)),
+        FeatureLocation(vr_pos, min(len(final_seq), vr_pos + 30), strand=-1),
         type="primer_bind",
-        strand=-1,
         qualifiers={
             "label": "vector_rev_primer",
             "note": f"5'-{primers['vector_reverse']}-3'"
@@ -419,9 +478,8 @@ def create_genbank_output(result: Dict, original_vector_file: str = None,
     
     # Insert primers
     record.features.append(SeqFeature(
-        FeatureLocation(vector_up, vector_up + 30),
+        FeatureLocation(vector_up, vector_up + 30, strand=1),
         type="primer_bind",
-        strand=1,
         qualifiers={
             "label": "insert_fwd_primer",
             "note": f"5'-{primers['insert_forward']}-3'"
@@ -429,9 +487,8 @@ def create_genbank_output(result: Dict, original_vector_file: str = None,
     ))
     
     record.features.append(SeqFeature(
-        FeatureLocation(max(0, vector_up + insert_length - 30), vector_up + insert_length),
+        FeatureLocation(max(0, vector_up + insert_length - 30), vector_up + insert_length, strand=-1),
         type="primer_bind",
-        strand=-1,
         qualifiers={
             "label": "insert_rev_primer",
             "note": f"5'-{primers['insert_reverse']}-3'"
