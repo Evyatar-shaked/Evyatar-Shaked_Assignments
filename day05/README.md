@@ -9,7 +9,7 @@ A classic hangman word-guessing game with multiple categories.
 1. Open your command line/terminal
 2. Navigate to the game directory:
    ```
-   cd c:\Users\eg....
+   cd c:\Users\blablabla....
    ```
 3. Run the game:
    ```
