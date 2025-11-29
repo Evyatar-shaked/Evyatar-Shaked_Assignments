@@ -242,8 +242,11 @@ class GibsonAssemblyGUI:
         ttk.Button(button_frame, text="Clear All", 
                   command=self.clear_all).pack(side=tk.LEFT, padx=10)
         
-        # Progress bar
-        self.progress = ttk.Progressbar(parent, mode='indeterminate')
+        # Progress bar - configure style for green color
+        style = ttk.Style()
+        style.configure("green.Horizontal.TProgressbar", troughcolor='white', 
+                       background='green', bordercolor='green', lightcolor='green', darkcolor='green')
+        self.progress = ttk.Progressbar(parent, mode='indeterminate', style="green.Horizontal.TProgressbar")
         self.progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
     
     def setup_results_tab(self, parent):
@@ -393,6 +396,8 @@ class GibsonAssemblyGUI:
         self.insert_file = None
         self.vector_seq = None
         self.insert_seq = None
+        self.update_vector_length()
+        self.update_insert_length()
         self.status_var.set("Cleared all inputs")
     
     def run_optimization(self):
