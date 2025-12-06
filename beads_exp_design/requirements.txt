@@ -1,0 +1,11 @@
+# Requirements for Formate Beads + Monod Kinetics Calculator
+
+numpy>=1.20.0
+scipy>=1.7.0
+matplotlib>=3.3.0
+
+# Note: tkinter usually comes with Python installation
+# If not available, install python-tk package:
+# - Ubuntu/Debian: sudo apt-get install python3-tk
+# - macOS: Usually included with Python
+# - Windows: Usually included with Python

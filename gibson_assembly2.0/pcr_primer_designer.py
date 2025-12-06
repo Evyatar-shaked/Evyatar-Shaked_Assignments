@@ -88,11 +88,11 @@ class PCRPrimerOptimizer:
                             # Extract primers
                             if fwd_pos + fwd_len > len(template_seq):
                                 continue
-                            if rev_pos - rev_len < 0:
+                            if rev_pos + rev_len > len(template_seq):
                                 continue
                             
                             fwd_primer = template_seq[fwd_pos:fwd_pos + fwd_len]
-                            rev_region = template_seq[rev_pos - rev_len:rev_pos]
+                            rev_region = template_seq[rev_pos:rev_pos + rev_len]
                             
                             # Validate primers
                             fwd_val = self.designer.validate_primer(fwd_primer, is_gibson=False)

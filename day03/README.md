@@ -8,7 +8,8 @@ A professional dilution calculator designed for lab workers to perform C1V1 = C2
 - **Unit Conversion**: Automatic conversion between different volume and concentration units
 - **Multiple Unit Support**:
   - **Volume Units**: L, mL, µL (or uL), nL
-  - **Concentration Units**: M, mM, µM (or uM), nM
+  - **Concentration Units**: M, mM, µM (or uM), nM, mg/mL, µg/mL, g/L
+- **Batch Processing**: Process multiple dilutions from Excel files at once
 - **User-Friendly GUI**: Simple interface with dropdown unit selectors
 - **Comprehensive Testing**: Full test suite covering business logic and edge cases
 - **Clear Instructions**: Step-by-step dilution instructions in results
@@ -17,19 +18,29 @@ A professional dilution calculator designed for lab workers to perform C1V1 = C2
 
 - Python 3.6 or higher
 - tkinter (usually included with Python)
+- pandas and openpyxl (for Excel batch processing)
 
 ## 🚀 Installation
 
-### Option 1: Basic Installation (No additional packages needed)
+### Option 1: GUI Only (Basic Installation)
 
 Since tkinter comes with most Python installations, you can run the calculator directly:
 
 ```powershell
-# Navigate to the day03 directory
-cd "c:\Users\evya1\OneDrive\Desktop\MSc\Courses\python\Evyatar-Shaked_Assignments\day03"
-
 # Run the GUI version
 python gui_version.py
+```
+
+### Option 2: Full Installation (GUI + Excel Batch Processing)
+
+For Excel batch processing capabilities, install the required packages:
+
+```powershell
+# Install all dependencies
+pip install -r requirements.txt
+
+# Or install individually
+pip install pandas openpyxl
 ```
 
 ### Option 2: Install Dependencies (if tkinter is missing)
@@ -92,6 +103,114 @@ brew install python-tk
 - **Input**: C1 = 1 g/mL, C2 = 100 mg/mL, V2 = 500 µL
 - **Output**: Use 50 µL stock + 450 µL solvent
 
+### Batch Processing from Excel Files
+
+For processing multiple dilutions at once, you can use an Excel spreadsheet.
+
+#### Excel File Format (Recommended: Units in Headers)
+
+Create an Excel file (.xlsx) with units specified in the column headers. This is the recommended format as it's cleaner and more typical for lab work:
+
+| C1 (M) | C2 (mM) | V2 (mL) |
+|--------|---------|---------|
+| 10 | 1000 | 100 |
+| 2 | 500 | 200 |
+| 0.1 | 10 | 50 |
+| 5 | 1000 | 10 |
+
+**Header format options:**
+- `C1 (M)` - Parentheses format (recommended)
+- `C1_M` - Underscore format
+- `C1-M` - Dash format
+- `C1 M` - Space format
+
+**Important rules:**
+- Specify units in column headers using one of the formats above
+- Cells contain only numeric values (e.g., `10`, `100`, `0.5`)
+- Base column names must be: `C1`, `C2`, `V2`
+- Units must match the supported units (see Supported Units section)
+- Both C1 and C2 must use the same unit system (both molar OR both mass)
+
+#### Alternative Format (Legacy: Units in Cells)
+
+You can also use the older format where each cell contains both value and unit:
+
+| C1 | C2 | V2 |
+|----|----|-----|
+| 10 M | 1 M | 100 mL |
+| 50 mg/mL | 5 mg/mL | 200 mL |
+| 100 mM | 10 mM | 50 µL |
+
+This format is still supported but the header format is recommended for easier data entry.
+
+#### Running Batch Processing
+
+**Option 1: Using the example script**
+
+```powershell
+# Edit batch_process_example.py to set your input filename
+python batch_process_example.py
+```
+
+**Option 2: Using Python code directly**
+
+```python
+from dilution_core import process_excel_dilutions
+
+# Process Excel file with units in headers (recommended)
+# Output will be saved as 'dilutions_header_format_results.xlsx'
+results = process_excel_dilutions(
+    input_file='dilutions_header_format.xlsx',
+    output_unit='mL'  # Units for V1 and Dilution columns
+)
+
+# Or specify a custom output filename
+results = process_excel_dilutions(
+    input_file='dilutions_header_format.xlsx',
+    output_file='my_results.xlsx',
+    output_unit='µL'
+)
+```
+
+#### Output Format
+
+The program creates a new Excel file with your original columns plus:
+- **V1**: Volume of stock solution needed (with unit)
+- **Dilution**: Volume of solvent to add (with unit)
+- **Error**: Any error messages (empty if successful)
+
+Example output (with header format):
+
+| C1 (M) | C2 (mM) | V2 (mL) | V1 | Dilution | Error |
+|--------|---------|---------|----------|----------|-------|
+| 10 | 1000 | 100 | 10.00 mL | 90.00 mL | |
+| 2 | 500 | 200 | 50.00 mL | 150.00 mL | |
+| 0.1 | 10 | 50 | 5.00 mL | 45.00 mL | |
+
+#### Example Excel Templates
+
+**Template 1: Units in Headers (Recommended)**
+
+Create `dilutions_header_format.xlsx`:
+
+| C1 (M) | C2 (mM) | V2 (mL) |
+|--------|---------|---------|
+| 10 | 1000 | 100 |
+| 2 | 500 | 200 |
+| 0.1 | 10 | 50 |
+| 5 | 1000 | 10 |
+
+**Template 2: Units in Cells (Legacy)**
+
+Create `dilutions_input.xlsx`:
+
+| C1 | C2 | V2 |
+|----|----|-----|
+| 10 M | 1 M | 100 mL |
+| 50 mg/mL | 5 mg/mL | 200 mL |
+| 100 mM | 10 mM | 50 µL |
+| 2 M | 500 µM | 1 mL |
+
 ### Using as a Python Module
 
 You can also import the functions in your own scripts:
@@ -151,15 +270,21 @@ The test suite covers:
 - ✅ Edge cases and error handling
 - ✅ Validation functions
 - ✅ Error handling for mixing molar and mass units
+- ✅ Parsing values with units from strings
+- ✅ Excel batch processing with valid data
+- ✅ Excel error handling and validation
 
 ## 📁 Project Structure
 
 ```
-day03/
-├── dilution_core.py      # Core calculation engine with unit conversion
-├── gui_version.py        # Graphical user interface
-├── test_dilution.py      # Comprehensive test suite
-└── README.md            # This file
+Dilution-calculator/
+├── dilution_core.py           # Core calculation engine with unit conversion & batch processing
+├── gui_version.py             # Graphical user interface
+├── batch_process_example.py   # Example script for Excel batch processing
+├── test_dilution.py           # Comprehensive test suite
+├── requirements.txt           # Project dependencies
+├── LICENSE                    # License file
+└── README.md                  # This file
 ```
 
 ## 🔬 Supported Units
@@ -222,9 +347,68 @@ Calculate dilution volumes based on C1V1 = C2V2.
 
 Convert volume from one unit to another.
 
+**Parameters:**
+- `value` (float): Numerical value to convert
+- `from_unit` (str): Source unit (e.g., 'mL', 'µL', 'L')
+- `to_unit` (str): Target unit
+
+**Returns:**
+- `float`: Converted value
+
 ### `convert_concentration(value, from_unit, to_unit)`
 
 Convert concentration from one unit to another.
+
+**Parameters:**
+- `value` (float): Numerical value to convert
+- `from_unit` (str): Source unit (e.g., 'M', 'mM', 'mg/mL')
+- `to_unit` (str): Target unit
+
+**Returns:**
+- `float`: Converted value
+
+**Raises:**
+- `ValueError`: If conversion between molar and mass units attempted
+
+### `process_excel_dilutions(input_file, output_file=None, output_unit='mL')`
+
+Process batch dilution calculations from an Excel file.
+
+**Parameters:**
+- `input_file` (str): Path to input Excel file (.xlsx or .xls)
+- `output_file` (str, optional): Path to output Excel file (default: adds '_results' to input filename)
+- `output_unit` (str): Unit for output volumes V1 and Dilution (default: 'mL')
+
+**Returns:**
+- `pandas.DataFrame`: DataFrame with calculated results including V1, Dilution, and Error columns
+
+**Raises:**
+- `ImportError`: If pandas or openpyxl not installed
+- `ValueError`: If required columns missing or data format invalid
+
+**Expected Excel Format (Recommended):**
+- Column 'C1 (M)' or 'C1_M': Stock concentration values (numeric only)
+- Column 'C2 (mM)' or 'C2_mM': Final concentration values (numeric only)
+- Column 'V2 (mL)' or 'V2_mL': Final volume values (numeric only)
+
+**Alternative Format (Legacy):**
+- Column 'C1': Stock concentration with unit (e.g., "10 M")
+- Column 'C2': Final concentration with unit (e.g., "1 mM")
+- Column 'V2': Final volume with unit (e.g., "100 mL")
+
+### `validate_dilution(c1, c2, v1, v2, tolerance=0.01)`
+
+Validate that a dilution follows C1V1 = C2V2.
+
+**Parameters:**
+- `c1` (float): Stock concentration
+- `c2` (float): Final concentration  
+- `v1` (float): Stock volume
+- `v2` (float): Final volume
+- `tolerance` (float): Acceptable relative error (default: 0.01 = 1%)
+
+**Returns:**
+- `bool`: True if dilution is valid within tolerance
 
 ### `validate_dilution(c1, c2, v1, v2, tolerance=0.01)`
 
@@ -250,6 +434,19 @@ Validate that a dilution follows C1V1 = C2V2.
 ### Issue: "tkinter not found" error
 **Solution**: Reinstall Python with tkinter support or install python3-tk package (Linux).
 
+### Issue: "pandas not found" for Excel processing
+**Solution**: Install pandas and openpyxl:
+```powershell
+pip install pandas openpyxl
+```
+
+### Issue: Excel file format errors
+**Solution**: 
+1. Ensure column names are exactly: `C1`, `C2`, `V2` (case-sensitive)
+2. Each cell must contain both value and unit with a space: "100 mL" not "100mL"
+3. Check that both C1 and C2 use the same unit system (molar OR mass, not mixed)
+4. Use supported units only (see Supported Units section)
+
 ### Issue: Calculator gives unexpected results
 **Solution**: 
 1. Check that C1 > C2 (you're diluting, not concentrating)
@@ -259,9 +456,15 @@ Validate that a dilution follows C1V1 = C2V2.
 ### Issue: Tests failing
 **Solution**: Make sure you're in the correct directory and Python can find all modules:
 ```powershell
-cd "c:\Users\evya1\OneDrive\Desktop\MSc\Courses\python\Evyatar-Shaked_Assignments\day03"
 python test_dilution.py
 ```
+
+### Issue: Excel output has ERROR in rows
+**Solution**: Check the Error column for specific error messages. Common issues:
+- Mixing molar and mass concentration units
+- Invalid unit formats
+- Missing units in cells
+- C1 = 0 (division by zero)
 
 ### created with claude sonnet 4.5 in the vscode agent mode
 ### prompt: 

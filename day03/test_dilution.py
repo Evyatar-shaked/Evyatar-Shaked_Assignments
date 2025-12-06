@@ -8,11 +8,16 @@ Or: python test_dilution.py
 
 import unittest
 import sys
+import os
+import tempfile
 from dilution_core import (
     calculate_dilution,
     convert_volume,
     convert_concentration,
     validate_dilution,
+    parse_value_with_unit,
+    parse_column_header,
+    process_excel_dilutions,
     VOLUME_UNITS,
     CONCENTRATION_UNITS,
     MOLAR_CONCENTRATION_UNITS,
@@ -336,6 +341,303 @@ class TestEdgeCases(unittest.TestCase):
         self.assertLess(added, 0)
 
 
+class TestParseValueWithUnit(unittest.TestCase):
+    """Test parsing of values with units from strings."""
+    
+    def test_parse_volume_with_unit(self):
+        """Test parsing volume with unit."""
+        value, unit = parse_value_with_unit("100 mL")
+        self.assertEqual(value, 100)
+        self.assertEqual(unit, "mL")
+    
+    def test_parse_concentration_with_unit(self):
+        """Test parsing concentration with unit."""
+        value, unit = parse_value_with_unit("10 M")
+        self.assertEqual(value, 10)
+        self.assertEqual(unit, "M")
+    
+    def test_parse_microliter(self):
+        """Test parsing microliter with µ symbol."""
+        value, unit = parse_value_with_unit("50 µL")
+        self.assertEqual(value, 50)
+        self.assertEqual(unit, "µL")
+    
+    def test_parse_float_value(self):
+        """Test parsing float value."""
+        value, unit = parse_value_with_unit("2.5 mM")
+        self.assertEqual(value, 2.5)
+        self.assertEqual(unit, "mM")
+    
+    def test_parse_mass_concentration(self):
+        """Test parsing mass concentration."""
+        value, unit = parse_value_with_unit("50 mg/mL")
+        self.assertEqual(value, 50)
+        self.assertEqual(unit, "mg/mL")
+    
+    def test_parse_missing_unit(self):
+        """Test error when unit is missing."""
+        with self.assertRaises(ValueError):
+            parse_value_with_unit("100")
+    
+    def test_parse_numeric_only(self):
+        """Test error when given only numeric value."""
+        with self.assertRaises(ValueError):
+            parse_value_with_unit(100)
+    
+    def test_parse_invalid_format(self):
+        """Test error with invalid format."""
+        with self.assertRaises(ValueError):
+            parse_value_with_unit("100mL")  # No space
+    
+    def test_parse_extra_spaces(self):
+        """Test parsing with extra whitespace."""
+        value, unit = parse_value_with_unit("  100   mL  ")
+        self.assertEqual(value, 100)
+        self.assertEqual(unit, "mL")
+
+
+class TestParseColumnHeader(unittest.TestCase):
+    """Test parsing of column headers with units."""
+    
+    def test_parse_parentheses_format(self):
+        """Test parsing 'C1 (M)' format."""
+        base, unit = parse_column_header("C1 (M)")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "M")
+    
+    def test_parse_parentheses_no_space(self):
+        """Test parsing 'C1(M)' format without space."""
+        base, unit = parse_column_header("C1(M)")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "M")
+    
+    def test_parse_underscore_format(self):
+        """Test parsing 'C1_M' format."""
+        base, unit = parse_column_header("C1_M")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "M")
+    
+    def test_parse_dash_format(self):
+        """Test parsing 'C1-M' format."""
+        base, unit = parse_column_header("C1-M")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "M")
+    
+    def test_parse_space_format(self):
+        """Test parsing 'C1 M' format."""
+        base, unit = parse_column_header("C1 M")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "M")
+    
+    def test_parse_complex_unit(self):
+        """Test parsing complex units like 'mg/mL'."""
+        base, unit = parse_column_header("C1 (mg/mL)")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "mg/mL")
+    
+    def test_parse_microliter(self):
+        """Test parsing with µ symbol."""
+        base, unit = parse_column_header("V2 (µL)")
+        self.assertEqual(base, "V2")
+        self.assertEqual(unit, "µL")
+    
+    def test_parse_no_unit(self):
+        """Test parsing header without unit."""
+        base, unit = parse_column_header("C1")
+        self.assertEqual(base, "C1")
+        self.assertIsNone(unit)
+    
+    def test_parse_with_whitespace(self):
+        """Test parsing with extra whitespace."""
+        base, unit = parse_column_header("  C1 (M)  ")
+        self.assertEqual(base, "C1")
+        self.assertEqual(unit, "M")
+
+
+class TestExcelBatchProcessing(unittest.TestCase):
+    """Test Excel batch processing functionality."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        # Check if pandas is available
+        try:
+            import pandas as pd
+            self.pd = pd
+            self.pandas_available = True
+        except ImportError:
+            self.pandas_available = False
+    
+    def test_process_excel_header_format(self):
+        """Test Excel processing with units in headers (new format)."""
+        if not self.pandas_available:
+            self.skipTest("pandas not available")
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_input = f.name
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_output = f.name
+        
+        try:
+            # Create test data with units in headers
+            df = self.pd.DataFrame({
+                'C1 (M)': [10, 2, 0.1],
+                'C2 (mM)': [1000, 500, 10],
+                'V2 (mL)': [100, 200, 50]
+            })
+            df.to_excel(temp_input, index=False)
+            
+            # Process the file
+            result_df = process_excel_dilutions(temp_input, temp_output, output_unit='mL')
+            
+            # Check that output columns exist
+            self.assertIn('V1', result_df.columns)
+            self.assertIn('Dilution', result_df.columns)
+            self.assertIn('Error', result_df.columns)
+            
+            # Check first row calculation (10 M -> 1 M in 100 mL)
+            self.assertIn('10.00 mL', result_df.loc[0, 'V1'])
+            self.assertIn('90.00 mL', result_df.loc[0, 'Dilution'])
+            
+            # Check that there are no errors
+            self.assertIsNone(result_df.loc[0, 'Error'])
+            
+        finally:
+            # Clean up temporary files
+            if os.path.exists(temp_input):
+                os.unlink(temp_input)
+            if os.path.exists(temp_output):
+                os.unlink(temp_output)
+    
+    def test_process_excel_legacy_format(self):
+        """Test Excel processing with units in cells (legacy format)."""
+        if not self.pandas_available:
+            self.skipTest("pandas not available")
+        
+        # Create a temporary Excel file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_input = f.name
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_output = f.name
+        
+        try:
+            # Create test data
+            df = self.pd.DataFrame({
+                'C1': ['10 M', '50 mg/mL', '100 mM'],
+                'C2': ['1 M', '5 mg/mL', '10 mM'],
+                'V2': ['100 mL', '200 mL', '50 µL']
+            })
+            df.to_excel(temp_input, index=False)
+            
+            # Process the file
+            result_df = process_excel_dilutions(temp_input, temp_output, output_unit='mL')
+            
+            # Check that output columns exist
+            self.assertIn('V1', result_df.columns)
+            self.assertIn('Dilution', result_df.columns)
+            self.assertIn('Error', result_df.columns)
+            
+            # Check first row calculation (10 M -> 1 M in 100 mL)
+            self.assertIn('10.00 mL', result_df.loc[0, 'V1'])
+            self.assertIn('90.00 mL', result_df.loc[0, 'Dilution'])
+            
+            # Check that there are no errors
+            self.assertIsNone(result_df.loc[0, 'Error'])
+            
+        finally:
+            # Clean up temporary files
+            if os.path.exists(temp_input):
+                os.unlink(temp_input)
+            if os.path.exists(temp_output):
+                os.unlink(temp_output)
+    
+    def test_process_excel_alternative_header_formats(self):
+        """Test different header format styles."""
+        if not self.pandas_available:
+            self.skipTest("pandas not available")
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_input = f.name
+        
+        try:
+            # Test underscore format
+            df = self.pd.DataFrame({
+                'C1_M': [10],
+                'C2_mM': [1000],
+                'V2_mL': [100]
+            })
+            df.to_excel(temp_input, index=False)
+            result_df = process_excel_dilutions(temp_input, output_unit='mL')
+            self.assertIn('10.00 mL', result_df.loc[0, 'V1'])
+            
+        finally:
+            if os.path.exists(temp_input):
+                os.unlink(temp_input)
+            output_file = temp_input.replace('.xlsx', '_results.xlsx')
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+    
+    def test_process_excel_with_errors(self):
+        """Test Excel processing with invalid data."""
+        if not self.pandas_available:
+            self.skipTest("pandas not available")
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_input = f.name
+        
+        try:
+            # Create test data with mixed unit systems (should error)
+            df = self.pd.DataFrame({
+                'C1': ['10 M', '50 mg/mL'],
+                'C2': ['1 mg/mL', '5 M'],  # Wrong unit systems
+                'V2': ['100 mL', '200 mL']
+            })
+            df.to_excel(temp_input, index=False)
+            
+            # Process the file
+            result_df = process_excel_dilutions(temp_input, output_unit='mL')
+            
+            # Check that errors were captured
+            self.assertEqual(result_df.loc[0, 'V1'], 'ERROR')
+            self.assertEqual(result_df.loc[0, 'Dilution'], 'ERROR')
+            self.assertIsNotNone(result_df.loc[0, 'Error'])
+            
+        finally:
+            if os.path.exists(temp_input):
+                os.unlink(temp_input)
+            # Clean up auto-generated output file
+            output_file = temp_input.replace('.xlsx', '_results.xlsx')
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+    
+    def test_process_excel_missing_columns(self):
+        """Test error when required columns are missing."""
+        if not self.pandas_available:
+            self.skipTest("pandas not available")
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.xlsx') as f:
+            temp_input = f.name
+        
+        try:
+            # Create test data missing C2 column
+            df = self.pd.DataFrame({
+                'C1': ['10 M'],
+                'V2': ['100 mL']
+            })
+            df.to_excel(temp_input, index=False)
+            
+            # Should raise ValueError
+            with self.assertRaises(ValueError) as context:
+                process_excel_dilutions(temp_input)
+            
+            self.assertIn('Missing required columns', str(context.exception))
+            
+        finally:
+            if os.path.exists(temp_input):
+                os.unlink(temp_input)
+
+
 def run_tests():
     """Run all tests and display results."""
     # Create test suite
@@ -351,6 +653,9 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestValidateDilution))
     suite.addTests(loader.loadTestsFromTestCase(TestRealWorldScenarios))
     suite.addTests(loader.loadTestsFromTestCase(TestEdgeCases))
+    suite.addTests(loader.loadTestsFromTestCase(TestParseValueWithUnit))
+    suite.addTests(loader.loadTestsFromTestCase(TestParseColumnHeader))
+    suite.addTests(loader.loadTestsFromTestCase(TestExcelBatchProcessing))
     
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
