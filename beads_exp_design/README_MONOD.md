@@ -12,7 +12,7 @@ The notebook is modularized into configuration, core logic classes, and simulati
 ### 1. Configuration (`Experiment Configuration`)
 A centralized section defines all physical and biological constants. No code changes are needed elsewhere if these parameters change.
 * **Bead Properties:** Formate content (mg) and molecular weights.
-* **Empirical Data:** Daily release rates for M07 (burst release) and M03 (sustained release).
+* **Empirical Data:** Daily release rates for M07 (larger content) and M03.
 * **Biological Parameters:** $\mu_{max}$, $K_s$, and Yield coefficients ($Y_{xs}$).
 
 ### 2. Core Classes
